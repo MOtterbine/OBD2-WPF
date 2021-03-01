@@ -1,0 +1,43 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 16
+VisualStudioVersion = 16.0.29519.181
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoScanner", "AutoScannerControl\AutoScanner.csproj", "{44E3BC08-85B3-4725-870C-B49A2ED982F8}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AutoScannerApp", "AutoScannerApp\AutoScannerApp.csproj", "{63373E6F-124B-45A9-BE3E-9E74BE525C2A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8} = {44E3BC08-85B3-4725-870C-B49A2ED982F8}
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Debug|x86.Build.0 = Debug|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Release|x86.ActiveCfg = Release|Any CPU
+		{44E3BC08-85B3-4725-870C-B49A2ED982F8}.Release|x86.Build.0 = Release|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Debug|x86.Build.0 = Debug|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Release|x86.ActiveCfg = Release|Any CPU
+		{63373E6F-124B-45A9-BE3E-9E74BE525C2A}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {1BEBBCCE-A38B-4EF3-AC86-D84BFB7F89C2}
+	EndGlobalSection
+EndGlobal

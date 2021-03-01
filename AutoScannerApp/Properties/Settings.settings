@@ -1,0 +1,23 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<SettingsFile xmlns="http://schemas.microsoft.com/VisualStudio/2004/01/settings" CurrentProfile="(Default)" GeneratedClassNamespace="OS.AutoScannerApp.Properties" GeneratedClassName="Settings">
+  <Profiles />
+  <Settings>
+    <Setting Name="AutoClose" Type="System.Boolean" Scope="User">
+      <Value Profile="(Default)">False</Value>
+    </Setting>
+    <Setting Name="ArgumentUsageHelpString" Type="System.String" Scope="User">
+      <Value Profile="(Default)">Command line usage - &lt;exe&gt; "&lt;xml&gt;"
+
+DataExchangeControl.exe "&lt;StartupParameters&gt;
+   &lt;StartupURI&gt;...&lt;/StartupURI&gt;
+   &lt;UserName&gt;...&lt;/UserName&gt;
+   &lt;Password&gt;...&lt;/Password&gt;
+   &lt;ServerAddress&gt;...&lt;/ServerAddress&gt;
+   &lt;Command&gt;[None|LogIn|RunTask|
+       ImportFile|ExportFile|ConvertFile]
+   &lt;/Command&gt;
+   &lt;WindowMode&gt;[Full|Minimal]&lt;/WindowMode&gt;
+&lt;/StartupParameters&gt;"</Value>
+    </Setting>
+  </Settings>
+</SettingsFile>

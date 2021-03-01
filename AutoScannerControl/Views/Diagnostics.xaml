@@ -1,0 +1,16 @@
+﻿<UserControl x:Class="OS.AutoScanner.Views.Diagnostics"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:OS.AutoScanner.Views"
+             mc:Ignorable="d" d:DesignWidth="530" Height="170">
+    <Grid>
+        <Button Content="{Binding StartButtonDescription}" Command="{Binding StartCommunicationCommand}" HorizontalAlignment="Left" Margin="355,48,0,0" VerticalAlignment="Top" Width="57" Height="25"/>
+        <Button Content="{Binding DeviceOnOffCommandText}" Command="{Binding OpenDeviceCommand}" HorizontalAlignment="Left" Margin="51,48,0,0" VerticalAlignment="Top" Width="95" Height="25" IsDefault="True"/>
+        <Button Content="{Binding StopButtonDescription}" Command="{Binding StopCommunicationCommand}" HorizontalAlignment="Left" Margin="417,48,0,0" VerticalAlignment="Top" Width="57" Height="25"/>
+        <!--<Label Content="{Binding DiagnosticsLabelText}" HorizontalAlignment="Left" Margin="0,0,-0.4,9.6" VerticalAlignment="Bottom" Height="33" Width="530" FontSize="16"/>-->
+        <ComboBox IsEnabled="{Binding StartButtonEnabled}" SelectedValuePath="Code"  DisplayMemberPath="Name" ItemsSource="{Binding ELM327Commands}" Margin="157,48,0,0" Height="25" VerticalAlignment="Top" SelectedValue="{Binding SelectedELM327CommandCode}" HorizontalAlignment="Left" Width="193" />
+        <Label Content="Operation" HorizontalAlignment="Left" Height="16" Padding="0" Margin="157,27,0,0" VerticalAlignment="Top" Width="75" RenderTransformOrigin="0.643,-1.689"/>
+    </Grid>
+</UserControl>

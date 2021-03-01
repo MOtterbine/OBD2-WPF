@@ -1,0 +1,3 @@
+﻿OS.AutoScanner.dll - Otterbine Solutions's primary OBD2 shared .NET library
+
+1.0.0.0         - Initial Release Beginning of library versioning.                 

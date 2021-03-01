@@ -1,0 +1,3 @@
+﻿OS.WPF.dll - Otterbine Solutions's WPF Application shared .NET library
+
+1.0.0.0         - Initial Release 

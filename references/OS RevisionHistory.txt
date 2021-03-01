@@ -1,0 +1,16 @@
+﻿OS.dll - Otterbine Solutions's primary shared .NET library
+
+1.0.0.1         - Beginning of library versioning. 
+                - Added iTextSharp utility to enable PDF form manipulation
+
+1.0.0.2         - Add 'Emailer' class
+                - Add a static text formatting class for quick, on-the-fly text formatting
+				
+1.0.0.3         - 'SerializableDictionary' class
+				
+1.0.0.4         - Add a type 'T1' for new class IRepository<T,T1> where T1 serves as a specified the db context
+                - Add signature 'object State(T entity)' to both versions of IRepository: IRepository<T> and IRepository<T,T1> inspired by VS Scaffolding
+				  template
+
+1.0.0.5         - Add string string xml serialization extensions
+

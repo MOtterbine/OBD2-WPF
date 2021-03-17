@@ -11,22 +11,20 @@ using OS.WPF;
 using System.Windows.Input;
 using OS.Communication;
 using log4net;
+using System.Windows;
 using System.Runtime.CompilerServices;
 using System.Windows.Media.Animation;
 using OS.AutoScanner.Views;
 using System.Security.Policy;
 using Windows.Media.Capture;
-using OxyPlot;
-using OxyPlot.Series;
-using OxyPlot.Axes;
 
 namespace OS.AutoScanner.Models
 {
-
     public class AutoScannerViewModel : IAppViewModel, INotifyPropertyChanged
     {
         #region Private members
 
+        protected const string NotReadyString = "NO RESPONSE: Ensure vehicle is on and OBDII device is plugged in";
         protected readonly ILog _logger = LogManager.GetLogger(typeof(AutoScannerViewModel));
         private DeviceEvent deviceEvent = null;
         private int expectedResponseCount = 0;
@@ -34,43 +32,43 @@ namespace OS.AutoScanner.Models
         private OBD2Device _OBD2Device = null;
         private SynchronizationContext syncContext;
         public System.Timers.Timer _timer = new System.Timers.Timer(10);
-        private readonly Dictionary<DeviceRequestType, string> _initFunctionDictionary = new Dictionary<DeviceRequestType, string>()
-        {  
-            // {DeviceRequestType.DeviceReset, "ATZ" }, // this is done upon 'clientconnected' event
-            {DeviceRequestType.DeviceDescription, "AT@1"  },
-            {DeviceRequestType.SerialNumber, "AT@2"  },
-            {DeviceRequestType.Protocol, "ATDP"  },
-           // {DeviceRequestType.SupplyVoltage, "ATRV"  },
-            {DeviceRequestType.EchoOff, "ATE0"  },
-            {DeviceRequestType.AllowLongMessages, "ATAL"  },
-            {DeviceRequestType.ProtocolSearch, "ATSP0"  }
+        private readonly List<DeviceRequestType> _CANInitFunctionList = new List<DeviceRequestType>()
+        {
+              //DeviceRequestType.MemoryOff,
+              DeviceRequestType.CANAutoFormatOn,
+              DeviceRequestType.CANAddressMask,
+              DeviceRequestType.CANAddressFilter,
+              DeviceRequestType.MonitorAll
+        };
+        private readonly List<DeviceRequestType> _InitFunctionList = new List<DeviceRequestType>()
+        {
+              DeviceRequestType.MemoryOff,
+              DeviceRequestType.EchoOff,
+              DeviceRequestType.SpacesOff,
+              DeviceRequestType.LineFeedsOff,
+              DeviceRequestType.CANAutoAddress,
+              DeviceRequestType.AllowLongMessages,
+              DeviceRequestType.ForgetEvents,
+              DeviceRequestType.ProtocolSearch,
+              DeviceRequestType.OBD2_GetPIDs
         };
         public DataPlotModel dataPlotModel { get; private set; }
 
-
-
-
         private int _initStep = 0;
         private bool _initializingDevice = false;
-
+        private bool _initializingDeviceCAN = false;
 
         private double _pointIndex = 0;
-      //  private LineSeries _lineSeries = new LineSeries();
-
-        public void Elaps(object source, System.Timers.ElapsedEventArgs e)
-        {
-
-        }
 
         public AutoScannerViewModel()
         {
-
-            this.dataPlotModel = new DataPlotModel { Title = "OBD2 Data", PlotType=PlotType.XY };
-          //  this.dataPlotModel.YAxisMaxValue = 20;
+            ActiveCANAddress = "Auto";
+            this.dataPlotModel = new DataPlotModel("OBD2 Data");
             // for constant monitoring...
             this._timer.Elapsed += (object source, System.Timers.ElapsedEventArgs elapsed) => {
                 this._timer.Stop();
-                this._OBD2Device.Send($"{(char)0x0D}");
+                this._OBD2Device.Send($"{carriageReturn}");
+                this.DeviceIsIdle = false;
             };
 
             DeviceOnOffCommandText = "Connect";
@@ -86,28 +84,18 @@ namespace OS.AutoScanner.Models
             this.UseIPSocket = Properties.Settings.Default.UseIPSocket;
             this.IPAddress = Properties.Settings.Default.IPAddress;
             this.IPPort = Properties.Settings.Default.IPPort;
+            this.CANID = Properties.Settings.Default.CanAddress;
+            this.CANMASK = Properties.Settings.Default.CanMask;
 
 
-
-            // Auto connect...
-        //    if (!string.IsNullOrEmpty(this.SelectedCommChannel))
-        //    {
-                // to let app know the status of this port...
-                //...not finished
-        //        _ = Connect();
-        //    }
             UpdateDiagnosticsMainLabel();
 
-            this.ELM327Commands = new System.Collections.ObjectModel.ReadOnlyCollection<ELM327Command>(OBD2Device.ELM327Commands.ToList());
+            this.ELM327Commands = new System.Collections.ObjectModel.ReadOnlyCollection<ELM327Command>(OBD2Device.ELM327Commands.Where(u => u.IsUserFunction == true).ToList());
 
             _logger.InfoFormat("Found {0} endpoints on the current machine.", epCount);
-            this.SelectedELM327CommandCode = "ATDP";
+            this.SelectedELM327CommandCode = "0300";
 
             if (this._creationCompleteEvent != null) this._creationCompleteEvent();
-
-
-            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
-
         }
 
         private void UpdateDiagnosticsMainLabel()
@@ -116,6 +104,7 @@ namespace OS.AutoScanner.Models
             {
                 DiagnosticsLabelText = "(no channel selected)";
                 HardwareStatus = "";
+                
             }
             else
             {
@@ -155,11 +144,12 @@ namespace OS.AutoScanner.Models
                     }
                     else
                     {
+                        
                         this.ComChannelName = this.SelectedCommChannel;
                         this._OBD2Device = new OBD2Device(new ELM327(this.ComChannelName, 38400));
                     }
-                    HardwareStatus += string.Format("Connecting to {0}...{1}", this.ComChannelName, Environment.NewLine);
-                }
+                    HardwareStatus += DiagnosticsLabelText = string.Format("Connecting to {0}...{1}", this.ComChannelName, Environment.NewLine);
+                                    }
                 catch(Exception e)
                 {
                     string it = e.Message;
@@ -167,8 +157,8 @@ namespace OS.AutoScanner.Models
                 this._OBD2Device.CommunicationEvent += this.deviceEvent;
                 if (!this._OBD2Device.Open())
                 {
-                    _DeviceIsIdle = true;
-                    HardwareStatus += $"Unable to open device - {this._OBD2Device.MessageString}{Environment.NewLine}";
+                    DeviceIsIdle = true;
+                    HardwareStatus += DiagnosticsLabelText = $"Unable to open device - {this._OBD2Device.MessageString}{Environment.NewLine}";
                     syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
                     return false;
                 }
@@ -186,30 +176,33 @@ namespace OS.AutoScanner.Models
             if (epIndex < epCount)
             {
                 //CloseDevice();
-                HardwareStatus += $"{Environment.NewLine}No response...";
+                DiagnosticsLabelText = NotReadyString;
+                HardwareStatus += $"{Environment.NewLine}{DiagnosticsLabelText}";
+
+                switch (this.CurrentRequestType)
+                {
+                    case DeviceRequestType.MonitorAll:
+                        // reset can address filters - also stops monitoring
+                        this._OBD2Device.Send($"{carriageReturn}");
+                      //  this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[DeviceRequestType.CANSetAddressFilters].Code}{carriageReturn}");
+                        break;
+                }
+                this.DeviceIsIdle = true;
+                this.IsMonitoring = false;
+                //  this.ChannelDisconnected = true;
+                syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
             }
         }
-        private byte[] byteBuf = new byte [100];
-        private int byteBufLen = 0;
-        private char cBuf = ' ';
-        private string lik = "";
-        private string buildString = "";
+        private System.Text.StringBuilder buildString = new StringBuilder();
         private bool _DeviceEchoOff = false;
-        private bool _DeviceIsIdle = true;
+        private double plotYVal = 0.0;
 
+        private char[] dataEndTrimChars = new char[] { '\n', '\r', '>' };
+        private char carriageReturn = (char)0x0D;
 
-
-    private void onDeviceEvent(object sender, ChannelEventArgs e)
+        private void onDeviceEvent(object sender, ChannelEventArgs e)
         {
             string comChannelName = this.ComChannelName;//SelectedCommChannel;
-            //if(this._UseIPSocket)con
-            //{
-            //    comChannelName = $"{this.IPAddress}:{this.IPPort}";
-            //}
-            //else
-            //{
-            //    comChannelName = SelectedCommChannel;
-            //}
 
             ICommunicationDevice cDev = sender as ICommunicationDevice;
             if (cDev == null) return;
@@ -218,8 +211,8 @@ namespace OS.AutoScanner.Models
                 case CommunicationEvents.ConnectedAsClient:
                     portDiscoveryTimeout.Stop();
                     portDiscoveryTimeout.Elapsed -= PortResponseTimeout_Elapsed;
-                    HardwareStatus = $"{comChannelName}: Open{Environment.NewLine}";
-                    buildString = string.Empty;
+                    HardwareStatus = DiagnosticsLabelText = $"{comChannelName}: Open{Environment.NewLine}";
+                    buildString.Clear();
                     DeviceOnOffCommandText = "Disconnect";
                     this.ChannelDisconnected = false;
 
@@ -228,296 +221,321 @@ namespace OS.AutoScanner.Models
                         case DeviceRequestType.None:
                             this._initStep = 0;
                             this._initializingDevice = true;
-                            //  CurrentRequestType = this._initFunctionList[0];
                             CurrentRequestType = DeviceRequestType.DeviceReset;
-                            cDev.Send($"ATZ{(char)0x0D}"); // Reset the device
-                            HardwareStatus += $"Scanning...{Environment.NewLine}";
+                            cDev.Send($"ATZ{carriageReturn}"); // Reset the device
+                            this.DeviceIsIdle = false;
+                            DiagnosticsLabelText = "Scanning...";
+                            HardwareStatus += DiagnosticsLabelText + Environment.NewLine;
                             break;
                     }
 
                     portDiscoveryTimeout.Elapsed += PortResponseTimeout_Elapsed;
                     portDiscoveryTimeout.Start();
                     expectedResponseCount++;
-                    _DeviceIsIdle = true;
+                    DeviceIsIdle = true;
 
                     //StartButtonEnabled = true;
 
+                    this._logger.InfoFormat("{0}: Device Connected", comChannelName);
 
                     break;
                 case CommunicationEvents.Receive:
-                    //if(buidString.Length == 0)
-                    //{
-                    //    HardwareStatus = string.Empty;
-                    //}
-                    buildString += ASCIIEncoding.ASCII.GetString(e.data);
+                    buildString.Append(ASCIIEncoding.ASCII.GetString(e.data));
                     break;
                 case CommunicationEvents.ReceiveEnd:
                     portDiscoveryTimeout.Stop();
                     portDiscoveryTimeout.Elapsed -= PortResponseTimeout_Elapsed;
 
-                    buildString += ASCIIEncoding.ASCII.GetString(e.data);
+                    buildString.Append(ASCIIEncoding.ASCII.GetString(e.data));
 
-                    string[] parsedData = System.Text.RegularExpressions.Regex.Replace(buildString,"(\r\r\r|\r\r|\r)", "\r").Split('\r');
-                    string outData = parsedData[_DeviceEchoOff?0:1];
+                    // all complete OBD2 messages end with '>' character according to ELM327 data sheet
+                    if (!buildString.ToString().EndsWith(">")) return;
+                    this.DeviceIsIdle = true;
+                    syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
 
-                    this._logger.InfoFormat("{0}: from device=> {1}", comChannelName, parsedData);
-                    string [] newData = null;
-                    //try
-                    //{
-                    switch (CurrentRequestType)
+
+                    string outData = "";
+                    string[] parsedData = System.Text.RegularExpressions.Regex.Replace(buildString.ToString().TrimEnd(dataEndTrimChars), "(\r\r\r|\r\r|\r)", "\r").Split('\r');
+                    try
                     {
-                        case DeviceRequestType.None:
-                            HardwareStatus = "Idle";
-                            break;
+                        outData = parsedData[_DeviceEchoOff ? 0 : 1];
+                    }
+                    catch(Exception)
+                    {
+                        return;
+                    }
 
-                        case DeviceRequestType.OBD2_GetEngineLoad:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Engine Load: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineLoad].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_ShortTermFuelTrimBank1:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Short-Term Fuel Trim B1: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank1].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_LongTermFuelTrimBank1:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Long-Term Fuel Trim B1: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank1].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_ShortTermFuelTrimBank2:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Short-Term Fuel Trim B2: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank2].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_LongTermFuelTrimBank2:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Long-Term Fuel Trim B2: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank2].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.SupplyVoltage:
-                            HardwareStatus = " Monitoring Supply Voltage";
-                            Properties.Settings.Default.CommChannel = this.SelectedCommChannel;
+                    //this._logger.InfoFormat("{0}: from device=> {1}", comChannelName, parsedData);
+                    //string [] newData = null;
 
-                            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
 
-                            this.dataPlotModel.Title = $"Supply Voltage: {outData}";
-                            this.dataPlotModel.Points.Add(new DataPoint(this._pointIndex, double.Parse(outData.Split(new char[] { 'V' })[0])));
-                            this._pointIndex += 1;
-                            if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
-                            {
-                                this.ClearPlotData();
-                            }
-                            dataPlotModel.InvalidatePlot(true);
-                            this.IsMonitoring = true;
-                            buildString = string.Empty;
-                            this._timer.Start();
+                    if (string.Compare(parsedData[0], "NO DATA", true) == 0)
+                    {
+                        HardwareStatus = string.Empty;
+                        foreach (var str in parsedData)
+                        {
+                            HardwareStatus += $"{str}{Environment.NewLine}";
+                            DiagnosticsLabelText = "No Data";
+                        }
+                        return;
+                    }
+                    if (string.Compare(parsedData[0], "CAN ERROR", true) == 0)
+                    {
+                        HardwareStatus = string.Empty;
+                        foreach (var str in parsedData)
+                        {
+                            HardwareStatus += $"{str}{Environment.NewLine}";
+                            DiagnosticsLabelText = "CAN Error";
+                        }
+                        return;
+                    }
+                    try
+                    {
+                        switch (CurrentRequestType)
+                        {
+                            case DeviceRequestType.None:
+                                HardwareStatus = DiagnosticsLabelText = "Idle";
+                                break;
 
-                            break;
-                        case DeviceRequestType.DeviceDescription:
-                            if (this._initializingDevice)
-                                HardwareStatus += "Device: " + outData + Environment.NewLine;
-                            else
-                                HardwareStatus = "Device: " + outData + Environment.NewLine;
-                            break;
-
-                        case DeviceRequestType.OBD2_ClearDTCs:
-                            HardwareStatus = outData + Environment.NewLine;
-                            // Properties.Settings.Default.CommChannel = this.SelectedCommChannel;
-
-                            StartButtonEnabled = true;
-                            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
-
-                            break;
-
-                        case DeviceRequestType.OBD2_GetPIDs:
-                            newData = System.Text.RegularExpressions.Regex.Replace(buildString, "(\r\r\r|\r\r|\r|>)", "\r").Split('\r');
-                            try
-                            {
-                                if (string.Compare(newData[0], "can error", true) == 0) HardwareStatus = newData[0];
-                                string[] socl = newData[0].Substring(5).Split(' ');
-                                lik = "";
-                                int i = 0;
-                                foreach (string str in socl)
+                            case DeviceRequestType.OBD2_GetEngineLoad:
+                                //newData = parsedData.Split('\r');
+                                if (parsedData.Length >= 1)
                                 {
-                                    if (string.IsNullOrEmpty(str)) continue;
 
-                                    byteBuf[i++] = byte.Parse(str, System.Globalization.NumberStyles.HexNumber);
-                                }
-                                byteBufLen = i;
-                                // HardwareStatus = $"PIDS: {byteBuf[0]}-{byteBuf[1]}-{byteBuf[2]}-{byteBuf[3]}";
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineLoad].function(parsedData));
+                                    HardwareStatus = DiagnosticsLabelText = $"Engine Load: {plotYVal:F2}%";
+                                    //HardwareStatus = DiagnosticsLabelText = $"Engine Load: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineLoad].function(newData)}%";
+                               
+                                    this.dataPlotModel.Title = DiagnosticsLabelText;
 
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
 
-                                var x = 0;
-                                uint mask = 0b10000000;
-                                PIDCategory tempPIDCat = null;
-                                StringBuilder sb = new StringBuilder($"Supported PIDs:{Environment.NewLine}");
-                                for (i = 0; i < byteBufLen; i++)
-                                {
-                                    mask = 0b10000000;
-                                    switch (i)
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
                                     {
-                                        case 0:
-                                            for (x = 1; x < 9; x++)
-                                            {
-                                                tempPIDCat = OBD2Device.OBD2PIDS[x];
-                                                if (tempPIDCat.IsSupported = !((mask & byteBuf[i]) == 0))
-                                                {
-                                                    sb.Append($"{tempPIDCat.Description}{Environment.NewLine}");
-                                                }
-                                                mask >>= 1;
-                                            }
-                                            break;
-                                        case 1:
-                                            for (x = 9; x < 17; x++)
-                                            {
-                                                tempPIDCat = OBD2Device.OBD2PIDS[x];
-                                                if (tempPIDCat.IsSupported = !((mask & byteBuf[i]) == 0))
-                                                {
-                                                    sb.Append($"{tempPIDCat.Description}{Environment.NewLine}");
-                                                }
-                                                mask >>= 1;
-                                            }
-                                            break;
-                                        case 2:
-                                            for (x = 17; x < 25; x++)
-                                            {
-                                                tempPIDCat = OBD2Device.OBD2PIDS[x];
-                                                if (tempPIDCat.IsSupported = !((mask & byteBuf[i]) == 0))
-                                                {
-                                                    sb.Append($"{tempPIDCat.Description}{Environment.NewLine}");
-                                                }
-                                                mask >>= 1;
-                                            }
-                                            break;
-                                        case 3:
-                                            for (x = 25; x < 33; x++)
-                                            {
-                                                tempPIDCat = OBD2Device.OBD2PIDS[x];
-                                                if (tempPIDCat.IsSupported = !((mask & byteBuf[i]) == 0))
-                                                {
-                                                    sb.Append($"{tempPIDCat.Description}{Environment.NewLine}");
-                                                }
-                                                mask >>= 1;
-                                            }
-                                            break;
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
                                     }
                                 }
-                                HardwareStatus = sb.ToString();
-                            }
-                            catch (Exception)
-                            {
-                                HardwareStatus = string.Empty;
-                                foreach (var str in newData)
+                                break;
+                            case DeviceRequestType.OBD2_ShortTermFuelTrimBank1:
+                                if (parsedData.Length >= 1)
                                 {
-                                    HardwareStatus += $"{str}{Environment.NewLine}";
+                                    //HardwareStatus = DiagnosticsLabelText = $"STFT Bank 1: {Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank1].function(parsedData)):F2}%";
+                                    if (!this.IsMonitoring)
+                                    {
+                                        this.dataPlotModel.YAxisMaxValue = 30;
+                                        this.dataPlotModel.YAxisMinValue = -30;
+                                    }
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank1].function(parsedData));
+                                    HardwareStatus = DiagnosticsLabelText = $"STFT Bank 1: {plotYVal:F2}%";
+
+                                    this.dataPlotModel.Title = DiagnosticsLabelText;
+
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
+
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
+                                    {
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
                                 }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
 
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_KmSinceDTCCleared:
-                            newData = buildString.Split(' ');
-                            if (newData.Length >= 5)
-                            {
-                                HardwareStatus = $"Distance traveled since DTCs cleared: {Math.Round(int.Parse(newData[2] + newData[3], System.Globalization.NumberStyles.HexNumber) / 1.60, 0, MidpointRounding.AwayFromZero)} miles";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_FuelLevel:
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_LongTermFuelTrimBank1:
+                                if (parsedData.Length >= 1)
+                                {
+                                    //HardwareStatus = DiagnosticsLabelText = $"LTFT Bank 1: {Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank1].function(parsedData)):F2}%";
+                                    if (!this.IsMonitoring)
+                                    {
+                                        this.dataPlotModel.YAxisMaxValue = 30;
+                                        this.dataPlotModel.YAxisMinValue = -30;
+                                    }
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank1].function(parsedData));
+                                    HardwareStatus = DiagnosticsLabelText = $"LTFT Bank 1: {plotYVal:F2}%";
 
-                            newData = buildString.Split(' ');
+                                    this.dataPlotModel.Title = DiagnosticsLabelText;
 
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Fuel: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_FuelLevel].function(newData)}%";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_WarmUpsSinceDTCCleared:
-                           // HardwareStatus = $"Warm-ups since DTC cleared: {int.Parse(outData.Substring(6), System.Globalization.NumberStyles.HexNumber)} warmups";
-                            newData = buildString.Split(' ');
-                            if (newData.Length >= 4)
-                            {
-                                HardwareStatus = $"Warm-ups since DTC cleared: {int.Parse(newData[2], System.Globalization.NumberStyles.HexNumber) } warmups";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_GetEngineCoolantTemp:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Coolant Temp: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineCoolantTemp].function(newData)}° F";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_GetAmbientTemp:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 4)
-                            {
-                                HardwareStatus = $"Ambient Temp: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetAmbientTemp].function(newData)}° F";
-                            }
-                            else
-                            {
-                                HardwareStatus = buildString.Remove(buildString.Length - 3);
-                            }
-                            break;
-                        case DeviceRequestType.OBD2_GetDTCs:
-                            HardwareStatus = $"{outData}{Environment.NewLine}";
-                            break;
-                        case DeviceRequestType.OBD2_GetEngineRPM:
-                            newData = buildString.Split(' ');
-                            if (newData.Length == 5)
-                            {
-                                HardwareStatus = "Monitoring Engine RPM";
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
 
-                                //var rpmVal = int.Parse(newData[2] + newData[3], System.Globalization.NumberStyles.HexNumber) / 4;
-                                var rpmVal = OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineRPM].function(newData);
-                               // var rpmValStr = $"{rpmVal}";
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
+                                    {
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_ShortTermFuelTrimBank2:
+                                if (parsedData.Length >= 1)
+                                {
+                                  //  HardwareStatus = DiagnosticsLabelText = $"STFT Bank 2: {Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank2].function(parsedData)):F2}%";
+                                    if (!this.IsMonitoring)
+                                    {
+                                        this.dataPlotModel.YAxisMaxValue = 30;
+                                        this.dataPlotModel.YAxisMinValue = -30;
+                                    }
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_ShortTermFuelTrimBank2].function(parsedData));
+                                    HardwareStatus = DiagnosticsLabelText = $"STFT Bank 2: {plotYVal:F2}%";
 
-                                this.dataPlotModel.Title = $"Engine RPM: {rpmVal}";
-                                this.dataPlotModel.Points.Add(new DataPoint(this._pointIndex, Convert.ToDouble(rpmVal)));
+                                    this.dataPlotModel.Title = DiagnosticsLabelText;
+
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
+
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
+                                    {
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_LongTermFuelTrimBank2:
+                                if (parsedData.Length >= 1)
+                                {
+                                    //HardwareStatus = DiagnosticsLabelText = $"LTFT Bank 2 : {Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank2].function(parsedData)):F2}%";
+                                    if (!this.IsMonitoring)
+                                    {
+                                        this.dataPlotModel.YAxisMaxValue = 30;
+                                        this.dataPlotModel.YAxisMinValue = -30;
+                                    }
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_LongTermFuelTrimBank2].function(parsedData));
+                                    HardwareStatus = DiagnosticsLabelText = $"LTFT Bank 2: {plotYVal:F2}%";
+
+
+                                    this.dataPlotModel.Title = DiagnosticsLabelText;
+
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
+
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
+                                    {
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_StatusSinceCodesLastCleared:
+                               // newData = outData.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = $"Status since DTCs cleared: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_StatusSinceCodesLastCleared].function(parsedData)}";
+                                    DiagnosticsLabelText = "Status since DTCs cleared:(see details tab)";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_FuelSystemStatus:
+                               // newData = outData.Split(' ');
+                                if (parsedData.Length == 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Fuel System: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_FuelSystemStatus].function(parsedData)}";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_FreezeFrameCauseFault:
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Freeze Frame Fault: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_FreezeFrameCauseFault].function(parsedData)}";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.SupplyVoltage:
+                                HardwareStatus = DiagnosticsLabelText = " Monitoring Supply Voltage";
+                                Properties.Settings.Default.CommChannel = this.SelectedCommChannel;
+
+                                syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
+
+                                this.dataPlotModel.Title = $"Supply Voltage: {outData}";
+
+                                this.plotYVal = double.Parse(outData.Split(new char[] { 'V' })[0]);
+
+                                this.dataPlotModel.AddDataPoint(this._pointIndex, this.plotYVal);
+
                                 this._pointIndex += 1;
                                 if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
                                 {
@@ -525,117 +543,377 @@ namespace OS.AutoScanner.Models
                                 }
                                 dataPlotModel.InvalidatePlot(true);
                                 this.IsMonitoring = true;
-                                buildString = string.Empty;
+                                buildString.Clear();
                                 this._timer.Start();
-                            }
-                            else
-                            {
-                                buildString = string.Empty;
-                                if(newData.Count() < 2)
-                                 {
-                                    
-                                    dataPlotModel.InvalidatePlot(true);
-                                    this.IsMonitoring = true;
-                                    this._timer.Start();
-                                 }
+
+                                break;
+                            case DeviceRequestType.DeviceDescription:
+                                if (this._initializingDevice)
+                                    HardwareStatus += "Device: " + outData + Environment.NewLine;
+                                else
+                                    HardwareStatus = DiagnosticsLabelText = "Device: " + outData + Environment.NewLine;
+
+                                break;
+
+                            case DeviceRequestType.OBD2_ClearDTCs:
+                                HardwareStatus = DiagnosticsLabelText = $"{parsedData[parsedData.Length - 1]}{Environment.NewLine}";
+                                break;
+
+                            case DeviceRequestType.OBD2_GetPIDs:
+                                if (this._initializingDevice)
+                                {
+                                    DiagnosticsLabelText = "Ready";
+                                }
                                 else
                                 {
-                                    //HardwareStatus = string.Empty;
-                                    //foreach (var str in newData)
-                                    //{
-                                    //    HardwareStatus += $"{str}{Environment.NewLine}";
-                                    //}
-                                   // HardwareStatus = buildString;
-
-
-                                    HardwareStatus = System.Text.RegularExpressions.Regex.Replace(buildString, "(\r\r\r|\r\r|\r|>)", "\r");
-
-
-
+                                    try
+                                    {
+                                        HardwareStatus =  $"Supported PIDS : {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetPIDs].function(parsedData)}";
+                                        DiagnosticsLabelText = "Supported PIDs (see details tab)";
+                                    }
+                                    catch (Exception)
+                                    {
+                                        // HardwareStatus = DiagnosticsLabelText = NotReadyString;
+                                        HardwareStatus = string.Empty;
+                                        foreach (var str in parsedData)
+                                        {
+                                            HardwareStatus += $"{str}{Environment.NewLine}";
+                                            DiagnosticsLabelText = NotReadyString;
+                                        }
+                                    }
                                 }
-                            }
+                                break;
+                            case DeviceRequestType.OBD2_KmSinceDTCCleared:
+                                //newData = buildString.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                  //  HardwareStatus = DiagnosticsLabelText = $"Distance traveled since DTCs cleared: {Math.Round(int.Parse(newData[2] + newData[3], System.Globalization.NumberStyles.HexNumber) / 1.60, 0, MidpointRounding.AwayFromZero)} miles";
+                                    HardwareStatus = DiagnosticsLabelText = $"Distance traveled since DTCs cleared: {Math.Round((int)OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_KmSinceDTCCleared].function(parsedData) / 1.60, 0, MidpointRounding.AwayFromZero)} miles";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_KmWithMilOn:
+                                //newData = buildString.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                    //  HardwareStatus = DiagnosticsLabelText = $"Distance traveled since DTCs cleared: {Math.Round(int.Parse(newData[2] + newData[3], System.Globalization.NumberStyles.HexNumber) / 1.60, 0, MidpointRounding.AwayFromZero)} miles";
+                                    HardwareStatus = DiagnosticsLabelText = $"Distance traveled with MIL on: {Math.Round((int)OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_KmSinceDTCCleared].function(parsedData) / 1.60, 0, MidpointRounding.AwayFromZero)} miles";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_FuelLevel:
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Fuel: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_FuelLevel].function(parsedData)}%";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_WarmUpsSinceDTCCleared:
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Warm-ups since DTC cleared: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_WarmUpsSinceDTCCleared].function(parsedData)} warmups";
+                                  //  HardwareStatus = DiagnosticsLabelText = $"Warm-ups since DTC cleared: {int.Parse(parsedData[_DeviceEchoOff ? 2 : 3], System.Globalization.NumberStyles.HexNumber) } warmups";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_GetEngineCoolantTemp:
+                                //newData = buildString.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Coolant Temp: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineCoolantTemp].function(parsedData)}° F";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_GetAmbientTemp:
+                                //newData = buildString.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"Ambient Temp: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetAmbientTemp].function(parsedData)}° F";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.OBD2_GetDTCs:
+                                
+                                DiagnosticsLabelText = "DTC Report (see details tab)";
+                                HardwareStatus = $"Current DTCs:{Environment.NewLine}";
+                                foreach (string str in parsedData)
+                                {
+                                    HardwareStatus += $"{str}{Environment.NewLine}";
+                                }
+
+                                buildString.Clear();
+                                CurrentRequestType = DeviceRequestType.OBD2_GetPendingDTCs;
+                                this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                                this.DeviceIsIdle = false;
+                                break;
+                            case DeviceRequestType.OBD2_GetPendingDTCs:
+                                HardwareStatus = $"Pending DTCs:{Environment.NewLine}";
+                                foreach (string str in parsedData)
+                                {
+                                    HardwareStatus += $"{str}{Environment.NewLine}";
+                                }
+
+                                break;
+                            case DeviceRequestType.OBD2_GetEngineRPM:
+                                //newData = buildString.Split(' ');
+                                if (parsedData.Length >= 1)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = "Monitoring Engine RPM";
+
+                                    this.plotYVal = Convert.ToDouble(OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetEngineRPM].function(parsedData));
+
+                                    this.dataPlotModel.Title = $"Engine RPM: {this.plotYVal}";
+
+                                    this.dataPlotModel.AddDataPoint(this._pointIndex, Convert.ToDouble(this.plotYVal));
+
+                                    this._pointIndex += 1;
+                                    if (this._pointIndex > this.dataPlotModel.XAxisMaxValue + 1)
+                                    {
+                                        this.ClearPlotData();
+                                    }
+                                    dataPlotModel.InvalidatePlot(true);
+                                    this.IsMonitoring = true;
+                                    buildString.Clear();
+                                    this._timer.Start();
+                                }
+                                else
+                                {
+                                    buildString.Clear();
+                                    if(parsedData.Count() < 2)
+                                     {
+                                        dataPlotModel.InvalidatePlot(true);
+                                        this.IsMonitoring = true;
+                                        this._timer.Start();
+                                     }
+                                    else
+                                    {
+                                        HardwareStatus = string.Empty;
+                                        foreach (var str in parsedData)
+                                        {
+                                            HardwareStatus += $"{str}{Environment.NewLine}";
+                                            DiagnosticsLabelText = NotReadyString;
+                                        }
+                                    }
+                                }
                             
-                            break;
-                        case DeviceRequestType.OBD2_GetVIN:
-                            newData = System.Text.RegularExpressions.Regex.Replace(buildString, "(\r\r\r|\r\r|\r)", "\r").Split('\r');
-                            if (newData.Length == 5)
+                                break;
+                            case DeviceRequestType.OBD2_GetVIN:
+                                //newData = System.Text.RegularExpressions.Regex.Replace(buildString, "(\r\r\r|\r\r|\r)", "\r").Split('\r');
+                                if (parsedData.Length >= 3)
+                                {
+                                    HardwareStatus = DiagnosticsLabelText = $"VIN: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetVIN].function(parsedData)}";
+                                }
+                                else
+                                {
+                                    HardwareStatus = string.Empty;
+                                    foreach (var str in parsedData)
+                                    {
+                                        HardwareStatus += $"{str}{Environment.NewLine}";
+                                        DiagnosticsLabelText = NotReadyString;
+                                    }
+                                }
+                                break;
+                            case DeviceRequestType.SerialNumber:
+                                if(this._initializingDevice)
+                                    HardwareStatus += $"Serial: {outData}{Environment.NewLine}";
+                                else
+                                    HardwareStatus = DiagnosticsLabelText = $"Serial: {outData}{Environment.NewLine}";
+                                break;
+                            case DeviceRequestType.Protocol:
+                                if (this._initializingDevice)
+                                    HardwareStatus += string.Format("Protocol: {0}{1}", outData, Environment.NewLine);
+                                else
+                                    HardwareStatus = DiagnosticsLabelText = string.Format("Protocol: {0}{1}", outData, Environment.NewLine);
+                                break;
+                            case DeviceRequestType.DeviceReset:
+                                HardwareStatus = DiagnosticsLabelText = $"Device Resetting...{Environment.NewLine}";
+                                this._initializingDevice = true;
+                                this._initStep = 0;
+                                _DeviceEchoOff = false;
+                                break;
+                            case DeviceRequestType.ProtocolSearch:
+                                if (this._initializingDevice)
+                                    HardwareStatus += $"Protocol Search: {outData}{Environment.NewLine}";
+                                else
+                                    HardwareStatus = DiagnosticsLabelText = $"Protocol Search: {outData}";
+                                break;
+                            case DeviceRequestType.DeviceSetDefaults:
+                                Properties.Settings.Default.CommChannel = comChannelName;
+                                Properties.Settings.Default.Save();
+                                break;
+                            case DeviceRequestType.EchoOff:
+                                _DeviceEchoOff = true;
+                                if (this._initializingDevice)
+                                    HardwareStatus += $"Echo Off{Environment.NewLine}";
+                                else
+                                    HardwareStatus = DiagnosticsLabelText = $"Echo Off{Environment.NewLine}";
+                                break;
+                            case DeviceRequestType.MonitorAll:
+                                MonitorText += $"{buildString.ToString().TrimEnd(dataEndTrimChars)}{Environment.NewLine}";
+                                if(string.Compare(parsedData[parsedData.Length-1],"STOPPED",true) == 0)
+                                {
+                           //         this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[DeviceRequestType.CANSetAddressFilters].Code}{carriageReturn}");
+                                }
+                                buildString.Clear();
+                                break;
+                            //case DeviceRequestType.CANAutoFormatOn:
+                            //    buildString.Clear();
+                            //    break;
+                            default:
+                                var obdFunction = OBD2Device.ELM327CommandDictionary[CurrentRequestType];
+                                if (this._initializingDevice || this._initializingDeviceCAN)
+                                {
+                                    switch (CurrentRequestType)
+                                    {
+                                        case DeviceRequestType.CANAddressMask:
+                                            if (this._initializingDeviceCAN) HardwareStatus += $"Set CAN address mask: {CANMASK}{Environment.NewLine}";
+                                            break;
+                                        case DeviceRequestType.CANAddressFilter:
+                                            if (this._initializingDeviceCAN) HardwareStatus += $"Set CAN address filter: {CANID}{Environment.NewLine}";
+                                            break;
+                                        case DeviceRequestType.CANAutoAddress:
+                                            HardwareStatus += $"Reset CAN address filters:{Environment.NewLine}";
+                                            break;
+                                        default:
+                                            HardwareStatus += $"{obdFunction.Name}{Environment.NewLine}";
+                                            break;
+                                    }
+                                }
+                                else
+                                {
+                                    // only show on diagnostic screen if this is a user function
+                                  //  if (obdFunction.IsUserFunction) 
+                                 //   {
+                                        HardwareStatus = DiagnosticsLabelText = $"{obdFunction.Name}";
+                                 //   }
+                                }
+                                break;
+                        }
+                        // After the clientconnected event, run these initial functions
+                        if (this._initializingDevice)
+                        {
+                            if (this._initStep < this._InitFunctionList.Count())
                             {
-                                HardwareStatus = $"VIN: {OBD2Device.ELM327CommandDictionary[DeviceRequestType.OBD2_GetVIN].function(newData)}";
+                                buildString.Clear();
+                                CurrentRequestType = this._InitFunctionList[this._initStep];
+                                //this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                                _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                                this.DeviceIsIdle = false;
+                                this._initStep++;
                             }
                             else
                             {
-                                HardwareStatus = newData[0];
+                                this._initializingDevice = false;
+                                Properties.Settings.Default.CommChannel = comChannelName;
+                                Properties.Settings.Default.Save();
+                                StartButtonEnabled = true;
+                                syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
+                                this.DeviceIsIdle = true;
+
                             }
-                            break;
-                        case DeviceRequestType.SerialNumber:
-                            if(this._initializingDevice)
-                                HardwareStatus += $"Serial: {outData}{Environment.NewLine}";
+                        }
+                        if (this._initializingDeviceCAN)
+                        {
+                            if (this._initStep < this._CANInitFunctionList.Count())
+                            {
+                                buildString.Clear();
+                                CurrentRequestType = this._CANInitFunctionList[this._initStep];
+                                switch(CurrentRequestType)
+                                {
+                                    case DeviceRequestType.MonitorAll:
+                                        HardwareStatus += DiagnosticsLabelText = $"Monitoring CAN...{Environment.NewLine}";
+                                        _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                                        break;
+                                    case DeviceRequestType.CANAddressMask:
+                                        _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{CANMASK}{carriageReturn}");
+                                        break;
+                                    case DeviceRequestType.CANAddressFilter:
+                                        this.ActiveCANAddress = CANID;
+                                        _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{CANID}{carriageReturn}");
+                                        break;
+                                    default:
+                                        _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                                        break;
+                                }
+                                this.DeviceIsIdle = false;
+                                this._initStep++;
+                            }
                             else
-                                HardwareStatus = $"Serial: {outData}{Environment.NewLine}";
-                            break;
-                        case DeviceRequestType.Protocol:
-                            if (this._initializingDevice)
-                                HardwareStatus += string.Format("Protocol: {0}{1}", outData, Environment.NewLine);
-                            else
-                                HardwareStatus = string.Format("Protocol: {0}{1}", outData, Environment.NewLine);
-                        break;
-                        case DeviceRequestType.EchoOff:
-                            _DeviceEchoOff = true;
-                            if (this._initializingDevice)
-                                HardwareStatus += $"Echo Off{Environment.NewLine}";
-                            else
-                                HardwareStatus = $"Echo Off{Environment.NewLine}";
-                        break;
-                        case DeviceRequestType.DeviceReset:
-                            HardwareStatus = $"Device Reset{Environment.NewLine}";
-                            this._initializingDevice = true;
-                            this._initStep = 0;
-                            _DeviceEchoOff = false;
-                            break;
-                        case DeviceRequestType.AllowLongMessages:
-                            if (this._initializingDevice)
-                                HardwareStatus += $"Allow long messages{Environment.NewLine}";
-                            else
-                                HardwareStatus = $"Allow long messages{Environment.NewLine}";
-                            break;
-                        case DeviceRequestType.DeviceSetDefaults:
-                            Properties.Settings.Default.CommChannel = comChannelName;
-                            Properties.Settings.Default.Save();
-                            break; 
+                            {
+                                this._initializingDeviceCAN = false;
+                                Properties.Settings.Default.CommChannel = comChannelName;
+                                Properties.Settings.Default.Save();
+                                StartButtonEnabled = true;
+                                syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
+                                this.DeviceIsIdle = true;
+
+                            }
+                        }
+                        return;
                     }
-                    // After the clientconnected event, run these initial functions
-                    if (this._initializingDevice)
+                    catch (Exception)
                     {
-                        if (this._initStep < this._initFunctionDictionary.Count())
-                        {
-                            buildString = string.Empty;
-                            CurrentRequestType = this._initFunctionDictionary.Keys.ElementAt(this._initStep);
-                            this._OBD2Device.Send($"{this._initFunctionDictionary.Values.ElementAt(this._initStep)}{(char)0x0D}");
-                            this._initStep++;
-                        }
-                        else
-                        {
-                            this._initializingDevice = false;
-                            Properties.Settings.Default.CommChannel = comChannelName;
-                            Properties.Settings.Default.Save();
-                            StartButtonEnabled = true;
-                            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
-                        }
+                        HardwareStatus = DiagnosticsLabelText = NotReadyString;
                     }
-                    return;
-                    //}
-                    //catch(Exception)
-                    //{
-                    //    HardwareStatus = buildString.Remove(buildString.Length - 3);
-                    //}
-                    
+                    break;
+
                 case CommunicationEvents.Disconnected:
                     this.ChannelDisconnected = true;
+                    this._OBD2Device.CommunicationEvent -= this.deviceEvent;
 
                     expectedResponseCount = 0;
                     DeviceOnOffCommandText = "Connect";
-                    HardwareStatus = $"{comChannelName}: Closed";
+                    HardwareStatus = DiagnosticsLabelText = $"{comChannelName}: Closed";
                     this._logger.InfoFormat($"{comChannelName}: Disconnected");
+                    this.DeviceIsIdle = true;
                     OnPropertyChanged("ComChannelIsReady");
                     OnPropertyChanged("IpChannelIsReady");
 
@@ -647,21 +925,21 @@ namespace OS.AutoScanner.Models
                     DeviceOnOffCommandText = "Connect";
                     if (CurrentRequestType == DeviceRequestType.Connect)
                     {
-                        HardwareStatus = $"Unable to connect to {comChannelName}";
+                        HardwareStatus = DiagnosticsLabelText = $"Unable to connect to {comChannelName}";
                     }
                     else
                     {
-                        HardwareStatus = $"{comChannelName}: Error";
+                        HardwareStatus = DiagnosticsLabelText = $"{comChannelName}: Error";
                     }
                     this._logger.InfoFormat($"{comChannelName}: Error");
                     OnPropertyChanged("ComChannelIsReady");
                     OnPropertyChanged("IpChannelIsReady");
-                    this._DeviceIsIdle = true;
+                    this.DeviceIsIdle = true;
                          
 
                     break;
                 default:
-                    HardwareStatus += "Unexpected Event Occurred..." + e.Event.ToString() + Environment.NewLine;
+                    HardwareStatus += DiagnosticsLabelText = "Unexpected Event Occurred..." + e.Event.ToString() + Environment.NewLine;
                     break;
             }
             syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
@@ -670,20 +948,40 @@ namespace OS.AutoScanner.Models
 
         #endregion Private members
 
-        public async Task StartComm()
+        public async Task StartComm(string data)
         {
             if (this._OBD2Device == null || !this._OBD2Device.IsOpen) return;
             //   ScanningPorts = false;
-            HardwareStatus = "Communicating...";//string.Empty;
-            buildString = string.Empty;
+            //HardwareStatus = DiagnosticsLabelText = "Communicating...";//string.Empty;
+            buildString.Clear();
 
-            this.CurrentRequestType = OBD2Device.ELM327Commands.First(x=>x.Code == this.SelectedELM327CommandCode).RequestType;
 
-            this._OBD2Device.Send($"{this.SelectedELM327CommandCode}{(char)0x0D}");
+
+            this._OBD2Device.Send(data);
+            this.DeviceIsIdle = false;
 
             // Clear data plot
             this.ClearPlotData();
 
+            portDiscoveryTimeout.Start();
+            portDiscoveryTimeout.Elapsed += PortResponseTimeout_Elapsed;
+
+            await Task.Delay(0);
+        }
+        public async Task StartComm()
+        {
+            if (this._OBD2Device == null || !this._OBD2Device.IsOpen) return;
+            //   ScanningPorts = false;
+            HardwareStatus = DiagnosticsLabelText = "Communicating...";//string.Empty;
+            buildString.Clear();
+
+
+
+            this._OBD2Device.Send($"{this.SelectedELM327CommandCode}{carriageReturn}");
+            this.DeviceIsIdle = false;
+
+            // Clear data plot
+            this.ClearPlotData();
 
             portDiscoveryTimeout.Start();
             portDiscoveryTimeout.Elapsed += PortResponseTimeout_Elapsed;
@@ -693,7 +991,13 @@ namespace OS.AutoScanner.Models
 
         private void ClearPlotData()
         {
-            this.dataPlotModel.Points.Clear();
+            // preseve plot range if data is just cycling
+            if (!this.IsMonitoring)
+            {
+                this.dataPlotModel.ResetVerticalRange();
+
+            }
+            this.dataPlotModel.ClearDataPoints();
             this._pointIndex = 0.0;
             this.dataPlotModel.InvalidatePlot(true);
         }
@@ -702,7 +1006,7 @@ namespace OS.AutoScanner.Models
         public async Task Connect()
         {
        //     ScanningPorts = false;
-            HardwareStatus = string.Empty;
+            HardwareStatus = DiagnosticsLabelText = string.Empty;
             syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
             await CreateDevice(SelectedCommChannel);
             syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
@@ -716,10 +1020,7 @@ namespace OS.AutoScanner.Models
                 return new byte[] { 10, 23 };
             });
         }
-        static Task<int> shitaki(ICommunicationDevice comDevice)
-        {
-            return new Task<int>(() => 50);
-        }
+
         #region IInitialize
         private static bool _ReadyForUse = false;
         bool IInitialize.ReadyForUse
@@ -799,8 +1100,23 @@ namespace OS.AutoScanner.Models
         #endregion Events
 
         #region Properties
-
-
+        /// <summary>
+        /// Abreviated message on diagnostics control
+        /// </summary>
+        public string DiagnosticsMessage
+        {
+            get
+            {
+                return this._DiagnosticsMessage;
+            }
+            set
+            {
+                if (value == this._DiagnosticsMessage) return;
+                this._DiagnosticsMessage = value;
+                OnPropertyChanged("DiagnosticsMessage");
+            }
+        }
+        private string _DiagnosticsMessage = "";
         //ChannelDisconnected
         public bool ComChannelIsReady
         {
@@ -813,7 +1129,7 @@ namespace OS.AutoScanner.Models
         {
             get
             {
-                return this._ChannelDisconnected && this._UseIPSocket;
+                return this._ChannelDisconnected && this._UseIPSocket && this._DeviceIsIdle;
             }
         }
 
@@ -839,7 +1155,7 @@ namespace OS.AutoScanner.Models
                 //{
                 DiagnosticsLabelText = "";
                     HardwareStatus = "";
-//                }
+//              }
 
                 OnPropertyChanged("UseIPSocket");
                 OnPropertyChanged("ChannelDisconnected");
@@ -847,8 +1163,35 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("IpChannelIsReady");
             }
         }
+        public string CANID
+        {
+            get
+            {
+                return this._CANID;
+            }
+            set
+            {
+                if (value == this._CANID) return;
+                this._CANID = value;
+                OnPropertyChanged("CANID");
+            }
+        }
+        private string _CANID = "";
+        public string CANMASK
+        {
+            get
+            {
+                return this._CANMASK;
+            }
+            set
+            {
+                if (value == this._CANMASK) return;
+                this._CANMASK = value;
+                OnPropertyChanged("CANMASK");
+            }
+        }
+        private string _CANMASK = "";
 
-        private string _IPAddress = "";
         public string IPAddress
         {
             get
@@ -862,6 +1205,7 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("IPAddress");
             }
         }
+        private string _IPAddress = "";
 
         private int _IPPort = 0;
         public int IPPort
@@ -906,19 +1250,6 @@ namespace OS.AutoScanner.Models
             }
         }
 
-
-
-        //public List<DataPoint> _Points = new List<DataPoint>();
-        //public List<DataPoint> Points
-        //{
-        //    get { return _Points; }
-        //    set {
-        //        _Points = value;
-        //        OnPropertyChanged("Points");
-        //    }
-        //}
-
-        private bool _ErrorOcurred = false;
         public bool ErrorOcurred
         {
             get
@@ -932,13 +1263,16 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("ErrorOcurred");
             }
         }
+        private bool _ErrorOcurred = false;
 
-        private bool _ChannelDisconnected = false;
+        /// <summary>
+        /// Applies to both com ports and sockets
+        /// </summary>
         public bool ChannelDisconnected
         {
             get
             {
-                return this._ChannelDisconnected && this._DeviceIsIdle;
+                return this._ChannelDisconnected && this.DeviceIsIdle;
             }
             set
             {
@@ -951,9 +1285,29 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("ChannelDisconnected");
             }
         }
+        private bool _ChannelDisconnected = false;
 
-        
-        private string _SelectedELM327CommandCode = "";
+        /// <summary>
+        /// Device is not idle if it is connected or in the process of attempting a connection
+        /// </summary>
+        public bool DeviceIsIdle
+        {
+            get
+            {
+                return this._DeviceIsIdle;
+            }
+            set
+            {
+                this._DeviceIsIdle = value;
+                OnPropertyChanged("DeviceIsIdle");
+                OnPropertyChanged("IpChannelIsReady");
+                OnPropertyChanged("ChannelDisconnected");
+            }
+        }
+        private bool _DeviceIsIdle = true;
+
+
+
         public string SelectedELM327CommandCode
         {
             get
@@ -967,9 +1321,10 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("SelectedELM327CommandCode");
             }
         }
+        private string _SelectedELM327CommandCode = "";
 
 
-        private System.Collections.ObjectModel.ReadOnlyCollection<ELM327Command> _ELM327Commands = null;
+
         public System.Collections.ObjectModel.ReadOnlyCollection<ELM327Command> ELM327Commands
         {
             get
@@ -982,10 +1337,28 @@ namespace OS.AutoScanner.Models
                 OnPropertyChanged("ELM327Commands");
             }
         }
+        private System.Collections.ObjectModel.ReadOnlyCollection<ELM327Command> _ELM327Commands = null;
 
 
 
-        private string _HardwareStatus = "";
+        public string MonitorText
+        {
+            get
+            {
+                return this._MonitorText;
+            }
+            set
+            {
+                //if (string.Compare(value, this._HardwareStatus) != 0)
+                //{
+                this._MonitorText = value;
+                OnPropertyChanged("MonitorText");
+
+                //}
+            }
+        }
+        private string _MonitorText = "";
+
         public string HardwareStatus
         {
             get
@@ -996,27 +1369,13 @@ namespace OS.AutoScanner.Models
             {
                 //if (string.Compare(value, this._HardwareStatus) != 0)
                 //{
-                    this._HardwareStatus = value;
-                    OnPropertyChanged("HardwareStatus");
+                this._HardwareStatus = value;
+                OnPropertyChanged("HardwareStatus");
 
                 //}
             }
         }
-
-        //private bool _StartButtonEnabled = false;
-        //public bool StartButtonEnabled
-        //{
-        //    get
-        //    {
-        //        return this._StartButtonEnabled;
-        //    }
-        //    set
-        //    {
-        //        this._StartButtonEnabled = value;
-        //        OnPropertyChanged("StartButtonEnabled");
-        //    }
-        //}
-
+        private string _HardwareStatus = "";
 
         private string _StartButtonDescription = "Go";
         public string StartButtonDescription
@@ -1085,7 +1444,7 @@ namespace OS.AutoScanner.Models
         {
             get
             {
-                return this._StartButtonEnabled;
+                return this._StartButtonEnabled && DeviceIsIdle;
             }
             set
             {
@@ -1095,7 +1454,22 @@ namespace OS.AutoScanner.Models
         }
 
 
-        private string _SelectedCommChannel = "";
+        public string ActiveCANAddress
+        {
+            get
+            {
+                return this._ActiveCANAddress;
+            }
+            set
+            {
+                this._ActiveCANAddress = value;
+                OnPropertyChanged("ActiveCANAddress");
+            }
+        }
+        private string _ActiveCANAddress = "";
+
+
+
         public string SelectedCommChannel
         {
             get
@@ -1105,22 +1479,15 @@ namespace OS.AutoScanner.Models
             set
             {
                 this._SelectedCommChannel = value;
-
-                CloseDevice();
-                 StartButtonEnabled = false;
+                StartButtonEnabled = false;
 
                 Properties.Settings.Default.CommChannel = value;
-
-
-
-
-
                 UpdateDiagnosticsMainLabel();
                 OnPropertyChanged("SelectedCommChannel");
-                this.DiagnosticsLabelText = HardwareStatus = string.IsNullOrEmpty(value)?"No channel":value + " selected";
-
+                this.DiagnosticsLabelText = HardwareStatus = DiagnosticsLabelText = string.IsNullOrEmpty(value)?"No channel":value + " selected";
             }
         }
+        private string _SelectedCommChannel = "";
 
         private string _DiagnosticDescription = "";
         public string DiagnosticDescription
@@ -1153,10 +1520,6 @@ namespace OS.AutoScanner.Models
         }
         #endregion Properties
 
-
-
-
-
         #region GetAllDevicesCommand
 
         RelayCommand _GetAllDevicesCommand;
@@ -1182,32 +1545,6 @@ namespace OS.AutoScanner.Models
         }
 
         #endregion GetAllDevicesCommand
-
-        //#region ScanDevicesCommand
-
-        //RelayCommand _ScanDevicesCommand;
-        //public ICommand ScanDevicesCommand
-        //{
-        //    get
-        //    {
-        //        return _ScanDevicesCommand ?? (_ScanDevicesCommand = new RelayCommand(param => this.ScanDevices(), param => CanScanDevices));
-        //    }
-        //}
-
-        //void ScanDevices()
-        //{
-        //   // _ = StartPortScan();
-        //}
-
-        //public bool CanScanDevices
-        //{
-        //    get
-        //    {
-        //        return true;
-        //    }
-        //}
-
-        //#endregion ScanDevicesCommand
 
         #region ScanDeviceCommand
 
@@ -1237,48 +1574,60 @@ namespace OS.AutoScanner.Models
 
         #endregion ScanDeviceCommand
 
-        #region OpenDeviceCommand
+        #region OpenCloseDeviceCommand
 
-        RelayCommand _OpenDeviceCommand;
-        public ICommand OpenDeviceCommand
+        RelayCommand _OpenCloseDeviceCommand;
+        public ICommand OpenCloseDeviceCommand
         {
             get
             {
-                return _OpenDeviceCommand ?? (_OpenDeviceCommand = new RelayCommand(param => this.OpenDevice(), param => CanOpenDevice));
+                return _OpenCloseDeviceCommand ?? (_OpenCloseDeviceCommand = new RelayCommand(param => this.OpenCloseDevice(), param => CanOpenCloseDevice));
             }
         }
 
 
-        void OpenDevice()
+        void OpenCloseDevice()
         {
             // This is a toggle operation
             if (this._OBD2Device == null || !this._OBD2Device.IsOpen)
             {
-                _DeviceIsIdle = false;
+
+                if (MessageBox.Show($"*Ensure OBDII hardware is connected{Environment.NewLine}*Vehicle ignition is ON{Environment.NewLine}*Engine is NOT running.", "Connect To Vehicle", MessageBoxButton.OKCancel, MessageBoxImage.Information) == MessageBoxResult.Cancel)
+                {
+                    return;
+                }
+
+
+                DeviceIsIdle = false;
 
                 CurrentRequestType = DeviceRequestType.None;
+
+
+
                 _ = Connect();
             }
             else
             {
+
+                this._timer.Stop();
                 portDiscoveryTimeout.Stop();
+
                 portDiscoveryTimeout.Elapsed -= PortResponseTimeout_Elapsed;
                 StartButtonEnabled = false;
                 if (this._OBD2Device == null) return;
                 this._OBD2Device.Close();
-                this._OBD2Device.CommunicationEvent -= this.deviceEvent;
             }
         }
 
-        public bool CanOpenDevice
+        public bool CanOpenCloseDevice
         {
             get
             {
-                return _DeviceIsIdle && (!string.IsNullOrEmpty(SelectedCommChannel));
+                return !IsMonitoring && DeviceIsIdle && (!string.IsNullOrEmpty(SelectedCommChannel) || UseIPSocket);
             }
         }
 
-        #endregion OpenDeviceCommand
+        #endregion OpenCloseDeviceCommand
 
         void CloseDevice()
         {
@@ -1286,9 +1635,7 @@ namespace OS.AutoScanner.Models
             if (this._OBD2Device == null) return;
             this._OBD2Device.Close();
             this._OBD2Device.CommunicationEvent -= this.deviceEvent;
-
         }
-
 
         #region StartCommunicationCommand
 
@@ -1304,6 +1651,51 @@ namespace OS.AutoScanner.Models
 
         void StartCommunication()
         {
+            this.CurrentRequestType = OBD2Device.ELM327Commands.First(x => x.Code == this.SelectedELM327CommandCode).RequestType;
+            
+            switch(this.CurrentRequestType)
+            {
+                case DeviceRequestType.OBD2_FuelLevel:
+                case DeviceRequestType.OBD2_GetEngineCoolantTemp:
+                case DeviceRequestType.OBD2_GetEngineLoad:
+                case DeviceRequestType.OBD2_GetEngineRPM:
+                case DeviceRequestType.OBD2_KmSinceDTCCleared:
+                case DeviceRequestType.OBD2_KmWithMilOn:
+                case DeviceRequestType.OBD2_LongTermFuelTrimBank1:
+                case DeviceRequestType.OBD2_LongTermFuelTrimBank2:
+                case DeviceRequestType.OBD2_ShortTermFuelTrimBank1:
+                case DeviceRequestType.OBD2_ShortTermFuelTrimBank2:
+                case DeviceRequestType.SupplyVoltage:
+                    this.SelectedTab = 0;
+                    break;
+                case DeviceRequestType.OBD2_ClearDTCs:
+                    if (MessageBox.Show("Clear all vehicle fault codes.", "Clear All Vehicle DTCs", MessageBoxButton.YesNo, MessageBoxImage.Warning) == MessageBoxResult.No)
+                    {
+                        return;
+                    }
+                    this.SelectedTab = 1;
+                    break;
+                case DeviceRequestType.OBD2_FuelSystemStatus:
+                case DeviceRequestType.OBD2_StatusSinceCodesLastCleared:
+                case DeviceRequestType.OBD2_GetPIDs:
+                case DeviceRequestType.OBD2_GetDTCs:
+                case DeviceRequestType.OBD2_GetPendingDTCs:
+                    this.SelectedTab = 1;
+                    break;
+                //case DeviceRequestType.MonitorAll:
+                //    this._initStep = 0;
+                //    HardwareStatus = DiagnosticsLabelText = $"Communicating...{Environment.NewLine}";
+                //    this._initializingDeviceCAN = true;
+                //    CurrentRequestType = DeviceRequestType.MemoryOff;
+                //    MonitorText = string.Empty;
+                //    this.IsMonitoring = true;
+                //    this.SelectedTab = 2;
+                //    Properties.Settings.Default.CanAddress = CANID;
+                //    Properties.Settings.Default.Save();
+                //    //this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                //    _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+                //    return;
+            }
             _ = StartComm();
 
         }
@@ -1312,11 +1704,134 @@ namespace OS.AutoScanner.Models
         {
             get
             {
-                return StartButtonEnabled;
+                return StartButtonEnabled && !IsMonitoring;
             }
         }
 
         #endregion StartCommunicationCommand
+
+        #region ResetCANAddressCommand
+
+        RelayCommand _ResetCANAddressCommand;
+        public ICommand ResetCANAddressCommand
+        {
+            get
+            {
+
+                return _ResetCANAddressCommand ?? (_ResetCANAddressCommand = new RelayCommand(param => this.ResetCANAddress(), param => CanStartCommunication));
+            }
+        }
+
+
+        void ResetCANAddress()
+        {
+            CurrentRequestType = DeviceRequestType.CANAutoAddress;
+            _ = StartComm();
+            this.ActiveCANAddress = "Auto";
+
+
+        }
+
+        //public bool CanResetCANAddress
+        //{
+        //    get
+        //    {
+        //        return true;
+        //    }
+        //}
+
+        #endregion ResetCANAddressCommand
+
+
+
+        #region StartCANMonitoringCommand
+
+        RelayCommand _StartCANMonitoringCommand;
+        public ICommand StartCANMonitoringCommand
+        {
+            get
+            {
+                return _StartCANMonitoringCommand ?? (_StartCANMonitoringCommand = new RelayCommand(param => this.StartCANMonitoring(), param => CanStartCommunication));
+            }
+        }
+
+        void StartCANMonitoring()
+        {
+
+            this._initStep = 0;
+            HardwareStatus = DiagnosticsLabelText = $"Communicating...{Environment.NewLine}";
+            MonitorText = string.Empty;
+            this._initializingDeviceCAN = true;
+            MonitorText = string.Empty;
+            this.IsMonitoring = true;
+            this.SelectedTab = 2;
+            Properties.Settings.Default.CanAddress = CANID;
+            Properties.Settings.Default.Save();
+            //this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+            CurrentRequestType = DeviceRequestType.MemoryOff;
+            _ = StartComm($"{OBD2Device.ELM327CommandDictionary[CurrentRequestType].Code}{carriageReturn}");
+
+
+
+
+
+
+
+
+
+
+
+            //CurrentRequestType = DeviceRequestType.MonitorAll;
+            //_ = StartComm();
+
+        }
+
+        //public bool CanStartCANMonitoring
+        //{
+        //    get
+        //    {
+        //        return true;
+        //    }
+        //}
+
+        #endregion StartCANMonitoringCommand
+
+        #region StopCANMonitoringCommand
+
+        RelayCommand _StopCANMonitoringCommand;
+        public ICommand StopCANMonitoringCommand
+        {
+            get
+            {
+
+                return _StopCANMonitoringCommand ?? (_StopCANMonitoringCommand = new RelayCommand(param => this.StopCANMonitoring(), param => CanStopCommunication));
+            }
+        }
+
+
+        void StopCANMonitoring()
+        {
+            HardwareStatus = DiagnosticsLabelText = "Bus Monitor Stopped";
+            this.IsMonitoring = false;
+            this.DeviceIsIdle = true;
+            // CurrentRequestType = DeviceRequestType.None;
+            this._OBD2Device.Send($"{carriageReturn}");
+         //   _ = StartComm($"{Environment.NewLine}");
+            this.IsMonitoring = false;
+            this.DeviceIsIdle = true;
+            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
+
+        }
+
+        //public bool CanStopCANMonitoring
+        //{
+        //    get
+        //    {
+        //        return true;
+        //    }
+        //}
+
+        #endregion ResetCANAddressCommand
 
         #region StopCommunicationCommand
 
@@ -1332,15 +1847,32 @@ namespace OS.AutoScanner.Models
 
         void StopCommunication()
         {
-            CurrentRequestType =  DeviceRequestType.None;
+
+            switch (this.CurrentRequestType)
+            {
+                case DeviceRequestType.MonitorAll:
+                    // reset CAN address filters and also stops monitoring
+                    this._OBD2Device.Send($"{carriageReturn}");
+                   // this._OBD2Device.Send($"{OBD2Device.ELM327CommandDictionary[DeviceRequestType.CANSetAddressFilters].Code}{carriageReturn}");
+                    HardwareStatus = DiagnosticsLabelText = "Bus Monitor Stopped";
+                    break;
+                default:
+                    CurrentRequestType =  DeviceRequestType.None;
+                    break;
+            }
+
+
             this.IsMonitoring = false;
+            this.DeviceIsIdle = true;
+            syncContext.Post(delegate { CommandManager.InvalidateRequerySuggested(); }, null);
+
         }
 
         public bool CanStopCommunication
         {
             get
             {
-                return StartButtonEnabled && IsMonitoring;
+                return IsMonitoring;
             }
         }
 

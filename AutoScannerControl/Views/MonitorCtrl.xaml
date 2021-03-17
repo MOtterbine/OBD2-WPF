@@ -1,0 +1,20 @@
+﻿<UserControl x:Class="OS.AutoScanner.Views.MonitorCtrl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
+             xmlns:local="clr-namespace:OS.AutoScanner.Views"
+             mc:Ignorable="d" d:DesignWidth="530" Height="370">
+    <Grid Margin="0,0,-0.4,22.6">
+        <TextBox Text="{Binding MonitorText}" Margin="10,68,10,10" FontSize="14px" FontWeight="Bold" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" RenderTransformOrigin="0.198,0.635" />
+        <TextBox Text="{Binding CANID}" HorizontalContentAlignment="Right" MaxLength="8" HorizontalAlignment="Left" Height="23" Margin="96,35,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="68"/>
+        <Button Command="{Binding ResetCANAddressCommand}" Content="Reset CAN Address" HorizontalAlignment="Left" Margin="169,7,0,0" VerticalAlignment="Top" Width="124" Height="23"/>
+        <Button Command="{Binding StartCANMonitoringCommand}" Content="Start" HorizontalAlignment="Left" Margin="298,7,0,0" VerticalAlignment="Top" Width="50" Height="23" />
+        <Button Command="{Binding StopCANMonitoringCommand}" Content="Stop" HorizontalAlignment="Left" Margin="353,7,0,0" VerticalAlignment="Top" Width="50" Height="23" RenderTransformOrigin="2.652,0.557"/>
+        <Label Content="{Binding ActiveCANAddress}" FontWeight="Bold" HorizontalAlignment="Left" HorizontalContentAlignment="Left" Margin="273,32,0,0" VerticalAlignment="Top" Width="68" Height="26" RenderTransformOrigin="-0.024,0.592"/>
+        <Label Content="CAN Address:" HorizontalContentAlignment="Right" Margin="10,30,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="86"/>
+        <Label Content="Current Address:" HorizontalContentAlignment="Right" Margin="169,30,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="99"/>
+        <TextBox Text="{Binding CANMASK}" HorizontalContentAlignment="Right" MaxLength="8" HorizontalAlignment="Left" Height="23" Margin="96,7,0,0" TextWrapping="Wrap" VerticalAlignment="Top" Width="68"/>
+        <Label Content="CAN Mask:" HorizontalContentAlignment="Right" Margin="10,4,0,0" VerticalAlignment="Top" HorizontalAlignment="Left" Width="86"/>
+    </Grid>
+</UserControl>

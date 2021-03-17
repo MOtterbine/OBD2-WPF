@@ -1,13 +1,12 @@
-﻿<UserControl x:Class="OS.AutoScanner.Views.Diagnostics"
+﻿<UserControl x:Class="OS.AutoScanner.Views.DetailsCtrl"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:OS.AutoScanner.Views"
-             xmlns:oxy="clr-namespace:OxyPlot.Wpf;assembly=OxyPlot.Wpf"
              mc:Ignorable="d" d:DesignWidth="530" Height="370">
-    <Grid>
+    <Grid Margin="0,0,-0.4,22.6">
         <!--<Label Content="{Binding DiagnosticsLabelText}" HorizontalAlignment="Left" Margin="0,0,-0.4,9.6" VerticalAlignment="Bottom" Height="33" Width="530" FontSize="16"/>-->
-        <oxy:PlotView Model="{Binding dataPlotModel}" Margin="10,10,9.6,9.6"/>
+        <TextBox Text="{Binding HardwareStatus}" Margin="10" FontSize="14px" FontWeight="Bold" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" RenderTransformOrigin="0.198,0.635" />
     </Grid>
 </UserControl>

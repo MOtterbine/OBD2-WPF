@@ -94,5 +94,29 @@ namespace OS.AutoScanner.Properties {
                 this["UseIPSocket"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("000007E8")]
+        public string CanAddress {
+            get {
+                return ((string)(this["CanAddress"]));
+            }
+            set {
+                this["CanAddress"] = value;
+            }
+        }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("FFFFFFFF")]
+        public string CanMask {
+            get {
+                return ((string)(this["CanMask"]));
+            }
+            set {
+                this["CanMask"] = value;
+            }
+        }
     }
 }

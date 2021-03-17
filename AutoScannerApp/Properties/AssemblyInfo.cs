@@ -8,7 +8,7 @@ using System.Windows;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("OS AutoScanner OBD2 Application")]
-[assembly: AssemblyDescription("OS AutoScanner main application file")]
+[assembly: AssemblyDescription("OS AutoScanner main application")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Otterbine Solutions")]
 [assembly: AssemblyProduct("AutoScannerApp")]

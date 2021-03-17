@@ -17,10 +17,15 @@ namespace OS.AutoScanner.Models
 
 	public class ELM327Command
 	{
+		public ELM327Command()
+        {
+			IsUserFunction = true;
+        }
 		public DeviceRequestType RequestType { get; set; }
 		public string Code { get; set; }
 		public string Name { get; set; }
 		public string Description { get; set; }
+		public bool IsUserFunction { get; set; }
 		public Func<string[], object> function { get; set; }
 
 	}

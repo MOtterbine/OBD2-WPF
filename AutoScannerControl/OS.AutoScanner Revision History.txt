@@ -1,3 +1,14 @@
 ﻿OS.AutoScanner.dll - Otterbine Solutions's primary OBD2 shared .NET library
 
-1.0.0.0         - Initial Release Beginning of library versioning.                 
+1.0.0.0         - Initial Release Beginning of library versioning.      
+
+1.0.0.1         - Add graphical plot to UI                 
+ 
+1.0.0.2         - Fix: WiFi was disabled when no com ports are found on the machine
+                - Add some space between max plot value and the top of the plot     
+                - Add a 'Details' tab for detailed information allowing the diagnostic text messages to be minimized    
+                - Fix: fuel trim calculations were wrong                
+ 
+1.0.0.3         - Add a 'Bus Monitor' tab     
+                - Add confirmation dialog popups before connecting and clearing DTCs   
+ 

@@ -174,7 +174,6 @@
     <Compile Include="AssemblyInfo.cs">
       <SubType>Code</SubType>
     </Compile>
-    <Compile Include="Enums.cs" />
     <Compile Include="Models\AutoScannerViewModel.cs" />
     <Compile Include="Models\DataPlotModel.cs" />
     <Compile Include="Models\OSBluetoothLEAdvertisementWatcher.cs" />
@@ -185,6 +184,12 @@
       <AutoGen>True</AutoGen>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>
       <DependentUpon>Settings.settings</DependentUpon>
+    </Compile>
+    <Compile Include="Views\MonitorCtrl.xaml.cs">
+      <DependentUpon>MonitorCtrl.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="Views\DetailsCtrl.xaml.cs">
+      <DependentUpon>DetailsCtrl.xaml</DependentUpon>
     </Compile>
     <Compile Include="Views\Diagnostics.xaml.cs">
       <DependentUpon>Diagnostics.xaml</DependentUpon>
@@ -213,6 +218,14 @@
   </ItemGroup>
   <ItemGroup>
     <Page Include="ObjectResources.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\MonitorCtrl.xaml">
+      <Generator>MSBuild:Compile</Generator>
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Include="Views\DetailsCtrl.xaml">
       <Generator>MSBuild:Compile</Generator>
       <SubType>Designer</SubType>
     </Page>

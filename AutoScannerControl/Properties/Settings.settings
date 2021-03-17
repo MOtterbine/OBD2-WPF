@@ -20,5 +20,11 @@
     <Setting Name="UseIPSocket" Type="System.Boolean" Scope="User">
       <Value Profile="(Default)">False</Value>
     </Setting>
+    <Setting Name="CanAddress" Type="System.String" Scope="User">
+      <Value Profile="(Default)">000007E8</Value>
+    </Setting>
+    <Setting Name="CanMask" Type="System.String" Scope="User">
+      <Value Profile="(Default)">FFFFFFFF</Value>
+    </Setting>
   </Settings>
 </SettingsFile>

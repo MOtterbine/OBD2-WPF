@@ -15,16 +15,64 @@ namespace OS.AutoScanner.Models
         private LineSeries _lineSeries = new LineSeries();
         public double XAxisMaxValue {
             get { return this.Axes[0].Maximum; } 
-            set { this.Axes[0].Maximum = value; }
+            set { 
+                this.Axes[0].Maximum = value;
+            }
         }
         public double YAxisMaxValue
         {
             get { return this.Axes[1].Maximum; }
-            set { this.Axes[1].Maximum = value; }
+            set 
+            { 
+                this.Axes[1].Maximum = value;
+                this.tempMaxYValue = value;
+            }
+        }
+        public double YAxisMinValue
+        {
+            get { return this.Axes[1].Minimum; }
+            set 
+            { 
+                this.Axes[1].Minimum = value;
+                this.tempMinYValue = value;
+
+            }
+        }
+        private double tempMaxYValue = 0.0;
+        private double tempMinYValue = 0.0;
+        public void AddDataPoint(double xValue, double yValue)
+        {
+            if (yValue > tempMaxYValue)
+            {
+                tempMaxYValue = 1.1 * yValue;
+                this.YAxisMaxValue = tempMaxYValue;
+
+            }
+            if (yValue < tempMinYValue)
+            {
+                tempMinYValue = -1.1 * yValue;
+                this.YAxisMinValue = tempMinYValue;
+
+            }
+            this.Points.Add(new DataPoint(xValue, yValue));
         }
 
-        public DataPlotModel()
+        public void ResetVerticalRange()
         {
+            this.YAxisMaxValue = double.NaN;
+            this.YAxisMinValue = 0.0;
+            this.tempMaxYValue = 0.0;
+            this.tempMinYValue = 0.0;
+        }
+        public void ClearDataPoints()
+        {
+            this.Points.Clear();
+        }
+
+        public DataPlotModel(string title)
+        {
+            this.Title = title;
+            this.PlotType = PlotType.XY;
             this.TitleFontWeight = 200;
             this.TitleFontSize = 12;
             this.TitleHorizontalAlignment = TitleHorizontalAlignment.CenteredWithinView;

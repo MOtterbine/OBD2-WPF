@@ -3,7 +3,8 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                     xmlns:sys="clr-namespace:System;assembly=mscorlib"
                     xmlns:osConverters="clr-namespace:OS.WPF.Converters;assembly=OS.WPF"
-                    xmlns:SScanner="clr-namespace:OS.AutoScanner">
+                    xmlns:SScanner="clr-namespace:OS.Tests;assembly=OS">
+
 
     <ObjectDataProvider MethodName="GetValues" ObjectType="{x:Type sys:Enum}" x:Key="Tests">
         <ObjectDataProvider.MethodParameters>

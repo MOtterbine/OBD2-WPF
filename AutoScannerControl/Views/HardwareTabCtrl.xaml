@@ -15,7 +15,6 @@
         <TextBox IsEnabled="{Binding IpChannelIsReady}" HorizontalAlignment="Left" Height="25" Margin="304,32,0,0"  Text="{Binding IPPort}" VerticalAlignment="Top" Width="68" />
         <RadioButton IsEnabled="{Binding ChannelDisconnected}" Content="Com Port" HorizontalAlignment="Left" Margin="34,10,0,0" VerticalAlignment="Top" GroupName="ChannelType"  IsChecked="true"/>
         <RadioButton IsEnabled="{Binding ChannelDisconnected}"  Content="WiFi" HorizontalAlignment="Left" Margin="155,10,0,0" VerticalAlignment="Top"  GroupName="ChannelType" IsChecked="{Binding UseIPSocket, FallbackValue=false}"/>
-        <Label Content="{Binding DiagnosticsLabelText}" Margin="34,64,9.6,0" Height="35" FontSize="14px" FontWeight="Bold" ScrollViewer.VerticalScrollBarVisibility="Auto" ScrollViewer.HorizontalScrollBarVisibility="Disabled" RenderTransformOrigin="0.198,0.635" VerticalAlignment="Top" />
 
     </Grid>
 </UserControl>

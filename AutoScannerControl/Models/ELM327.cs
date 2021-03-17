@@ -6,10 +6,6 @@ using System.Threading.Tasks;
 using OS.Communication;
 using System.Xml.Serialization;
 using System.IO.Ports;
-using Windows.System.Update;
-using Windows.Networking.Sockets;
-using System.Collections.ObjectModel;
-using System.Runtime.CompilerServices;
 
 namespace OS.AutoScanner.Models
 {

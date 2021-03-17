@@ -12,11 +12,6 @@ using System.Windows.Input;
 using OS.Communication;
 using log4net;
 using System.Windows;
-using System.Runtime.CompilerServices;
-using System.Windows.Media.Animation;
-using OS.AutoScanner.Views;
-using System.Security.Policy;
-using Windows.Media.Capture;
 
 namespace OS.AutoScanner.Models
 {

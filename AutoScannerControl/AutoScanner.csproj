@@ -176,10 +176,8 @@
     </Compile>
     <Compile Include="Models\AutoScannerViewModel.cs" />
     <Compile Include="Models\DataPlotModel.cs" />
-    <Compile Include="Models\OSBluetoothLEAdvertisementWatcher.cs" />
     <Compile Include="Models\ELM327.cs" />
     <Compile Include="Models\ODB2Device.cs" />
-    <Compile Include="Models\OSBluetoothLEDevice.cs" />
     <Compile Include="Properties\Settings.Designer.cs">
       <AutoGen>True</AutoGen>
       <DesignTimeSharedInput>True</DesignTimeSharedInput>

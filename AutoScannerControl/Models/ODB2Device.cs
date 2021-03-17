@@ -5,8 +5,6 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using OS.Communication;
-using Windows.Media.Devices;
-using Windows.Security.Authentication.Identity.Core;
 
 namespace OS.AutoScanner.Models
 {
